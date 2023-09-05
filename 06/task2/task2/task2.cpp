@@ -1,7 +1,12 @@
 ﻿#include <iostream>
 #include <string>
-#include <Wt/Dbo/Dbo>
-#include <pqxx/pqxx>
+#include <Wt/WDateTime.h>
+#include <Wt/Dbo/Dbo.h>
+#include <Wt/Dbo/backend/Sqlite3.h>
+#include <Wt/Dbo/Session.h>
+#include <Wt/Dbo/ptr.h>
+#include <Wt/Dbo/Query.h>
+#include <Wt/Dbo/SqlTraits.h>
 
 // Определение классов Publisher, Book, Stock, Sale, Shop
 class Publisher {
@@ -50,7 +55,7 @@ class Sale {
 public:
     int id;
     double price;
-    Wt::Dbo::DateTime date_sale;
+    Wt::WDateTime date_sale;
     Wt::Dbo::ptr<Stock> stock;
     int count;
 
@@ -78,17 +83,10 @@ public:
 
 int main() {
     try {
-        // Подключение к базе данных PostgreSQL
-        pqxx::connection conn("dbname=mydb user=myuser password=mypassword host=localhost port=5432");
-        if (!conn.is_open()) {
-            std::cerr << "Failed to connect to PostgreSQL" << std::endl;
-            return 1;
-        }
-
-        // Инициализация Wt::Dbo с использованием PostgreSQL
-        Wt::Dbo::backend::Postgres pg(conn);
+        // Инициализация Wt::Dbo с использованием SQLite (может потребоваться установка библиотеки SQLite)
+        Wt::Dbo::backend::Sqlite3 sqliteBackend("mydb.db");
         Wt::Dbo::Session session;
-        session.setConnection(pg);
+        session.setConnection(sqliteBackend);
 
         // Создание таблиц (если они не существуют)
         session.createTables();
@@ -108,8 +106,9 @@ int main() {
         Wt::Dbo::ptr<Stock> stock1 = session.add(new Stock{ "1", book1, shop1, 10 });
         Wt::Dbo::ptr<Stock> stock2 = session.add(new Stock{ "2", book2, shop2, 5 });
 
-        Wt::Dbo::ptr<Sale> sale1 = session.add(new Sale{ "1", 20.0, Wt::Dbo::cpp17::make_unique<Wt::WDateTime>(Wt::WDateTime::currentDateTime()), stock1, 2 });
-        Wt::Dbo::ptr<Sale> sale2 = session.add(new Sale{ "2", 15.0, Wt::Dbo::cpp17::make_unique<Wt::WDateTime>(Wt::WDateTime::currentDateTime()), stock2, 3 });
+        Wt::WDateTime now = Wt::WDateTime::currentDateTime();
+        Wt::Dbo::ptr<Sale> sale1 = session.add(new Sale{ "1", 20.0, now, stock1, 2 });
+        Wt::Dbo::ptr<Sale> sale2 = session.add(new Sale{ "2", 15.0, now, stock2, 3 });
 
         transaction.commit();
 
@@ -131,8 +130,6 @@ int main() {
         for (const auto& shop : shops) {
             std::cout << "Магазин ID: " << shop.id << ", Название: " << shop.name << std::endl;
         }
-
-        conn.disconnect();
     }
     catch (const std::exception& e) {
         std::cerr << "Ошибка: " << e.what() << std::endl;
