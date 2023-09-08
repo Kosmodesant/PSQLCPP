@@ -1,14 +1,18 @@
 ﻿#include <iostream>
 #include <string>
-#include <Wt/WDateTime.h>
 #include <Wt/Dbo/Dbo.h>
-#include <Wt/Dbo/backend/Sqlite3.h>
-#include <Wt/Dbo/Session.h>
-#include <Wt/Dbo/ptr.h>
-#include <Wt/Dbo/Query.h>
-#include <Wt/Dbo/SqlTraits.h>
+#include <Wt/Dbo/backend/Postgres.h>
+#include <Wt/WDateTime.h>
 
 // Определение классов Publisher, Book, Stock, Sale, Shop
+class Publisher;
+class Book;
+class Stock;
+class Sale;
+class Shop;
+
+typedef Wt::Dbo::collection<Wt::Dbo::ptr<Shop>> Shops;
+
 class Publisher {
 public:
     int id;
@@ -19,6 +23,8 @@ public:
         Wt::Dbo::field(a, id, "id");
         Wt::Dbo::field(a, name, "name");
     }
+
+    Shops shops(Wt::Dbo::Transaction& t);
 };
 
 class Book {
@@ -81,12 +87,16 @@ public:
     }
 };
 
+Shops Publisher::shops(Wt::Dbo::Transaction& t) {
+    return t.session.query<Shop>("SELECT shop.* FROM shop INNER JOIN stock ON shop.id = stock.id_shop INNER JOIN book ON stock.id_book = book.id INNER JOIN publisher ON book.id_publisher = publisher.id WHERE publisher.name = ?").bind(name);
+}
+
 int main() {
     try {
-        // Инициализация Wt::Dbo с использованием SQLite (может потребоваться установка библиотеки SQLite)
-        Wt::Dbo::backend::Sqlite3 sqliteBackend("mydb.db");
+        // Инициализация Wt::Dbo с использованием PostgreSQL
+        Wt::Dbo::backend::Postgres postgresBackend("host=your_host user=your_user password=your_password dbname=your_dbname");
         Wt::Dbo::Session session;
-        session.setConnection(sqliteBackend);
+        session.setConnection(postgresBackend);
 
         // Создание таблиц (если они не существуют)
         session.createTables();
@@ -119,11 +129,9 @@ int main() {
 
         // Выполнение запроса на выборку магазинов
         Wt::Dbo::Transaction queryTransaction(session);
-        Wt::Dbo::Query<Shop> query = session.query<Shop>();
-        query.where("id IN (SELECT stock.id_shop FROM stock INNER JOIN book ON stock.id_book = book.id INNER JOIN publisher ON book.id_publisher = publisher.id WHERE publisher.name = ?)").bind(publisherName);
+        Wt::Dbo::ptr<Publisher> publisher = session.query<Publisher>().where("name = ?").bind(publisherName);
+        Shops shops = publisher->shops(queryTransaction);
 
-        std::vector<Wt::Dbo::ptr<Shop>> shops = query.resultList();
-        queryTransaction.commit();
 
         // Вывод результатов
         std::cout << "Магазины, в которых продают книги издателя '" << publisherName << "':" << std::endl;
@@ -138,3 +146,4 @@ int main() {
 
     return 0;
 }
+
