@@ -3,6 +3,8 @@
 #include <Wt/Dbo/Dbo.h>
 #include <Wt/Dbo/backend/Postgres.h>
 #include <Wt/WDateTime.h>
+#include <Wt/Dbo/Query.h>
+#include <Wt/Dbo/QueryModel.h>
 
 // Определение классов Publisher, Book, Stock, Sale, Shop
 class Publisher;
@@ -24,7 +26,7 @@ public:
         Wt::Dbo::field(a, name, "name");
     }
 
-    Shops shops(Wt::Dbo::Transaction& t);
+    Shops shops(Wt::Dbo::Transaction& t) const;
 };
 
 class Book {
@@ -87,22 +89,23 @@ public:
     }
 };
 
-Shops Publisher::shops(Wt::Dbo::Transaction& t) {
-    Wt::Dbo::Query<Wt::Dbo::ptr<Shop>> query = t.session.query<Wt::Dbo::ptr<Shop>>("shop.id");
-    query.join("INNER JOIN stock").on("shop.id = stock.id_shop");
-    query.join("INNER JOIN book").on("stock.id_book = book.id");
-    query.join("INNER JOIN publisher").on("book.id_publisher = publisher.id");
-    query.where("publisher.name = ?").bind(name);
-
+Shops Publisher::shops(Wt::Dbo::Transaction& t) const {
+    Wt::Dbo::Query<Wt::Dbo::ptr<Shop>> query = t.session().query<Wt::Dbo::ptr<Shop>>("shop.id");
+    query.join("INNER JOIN stock ON shop.id = stock.id_shop");
+    query.join("INNER JOIN book ON stock.id_book = book.id");
+    query.join("INNER JOIN publisher ON book.id_publisher = publisher.id");
+    query.where("publisher.name = ?").bind(name.c_str());
+ 
     return query.resultList();
 }
 
 int main() {
     try {
         // Инициализация Wt::Dbo с использованием PostgreSQL
-        Wt::Dbo::backend::Postgres postgresBackend("user=username password=PASSWORD dbname=dbname");
+        std::unique_ptr<Wt::Dbo::backend::Postgres> postgresBackend =
+            std::make_unique<Wt::Dbo::backend::Postgres>("user=username password=PASSWORD dbname=dbname");
         Wt::Dbo::Session session;
-        session.setConnection(postgresBackend);
+        session.setConnection(std::move(postgresBackend));
 
         // Создание таблиц (если они не существуют)
         session.createTables();
@@ -110,21 +113,21 @@ int main() {
         // Заполнение таблиц тестовыми данными (пример)
         Wt::Dbo::Transaction transaction(session);
 
-        Wt::Dbo::ptr<Publisher> publisher1 = session.add(new Publisher{ 0, "Publisher1" });
-        Wt::Dbo::ptr<Publisher> publisher2 = session.add(new Publisher{ 0, "Publisher2" });
+        Wt::Dbo::ptr<Publisher> publisher1 = session.add(std::make_unique<Publisher>(Publisher{ 0, "Publisher1" }));
+        Wt::Dbo::ptr<Publisher> publisher2 = session.add(std::make_unique<Publisher>(Publisher{ 0, "Publisher2" }));
 
-        Wt::Dbo::ptr<Shop> shop1 = session.add(new Shop{ 0, "Shop1" });
-        Wt::Dbo::ptr<Shop> shop2 = session.add(new Shop{ 0, "Shop2" });
+        Wt::Dbo::ptr<Shop> shop1 = session.add(std::make_unique<Shop>(Shop{ 0, "Shop1" }));
+        Wt::Dbo::ptr<Shop> shop2 = session.add(std::make_unique<Shop>(Shop{ 0, "Shop2" }));
 
-        Wt::Dbo::ptr<Book> book1 = session.add(new Book{ 0, "Book1", publisher1 });
-        Wt::Dbo::ptr<Book> book2 = session.add(new Book{ 0, "Book2", publisher2 });
+        Wt::Dbo::ptr<Book> book1 = session.add(std::make_unique<Book>(Book{ 0, "Book1", publisher1 }));
+        Wt::Dbo::ptr<Book> book2 = session.add(std::make_unique<Book>(Book{ 0, "Book2", publisher2 }));
 
-        Wt::Dbo::ptr<Stock> stock1 = session.add(new Stock{ 0, book1, shop1, 10 });
-        Wt::Dbo::ptr<Stock> stock2 = session.add(new Stock{ 0, book2, shop2, 5 });
+        Wt::Dbo::ptr<Stock> stock1 = session.add(std::make_unique<Stock>(Stock{ 0, book1, shop1, 10 }));
+        Wt::Dbo::ptr<Stock> stock2 = session.add(std::make_unique<Stock>(Stock{ 0, book2, shop2, 5 }));
 
         Wt::WDateTime now = Wt::WDateTime::currentDateTime();
-        Wt::Dbo::ptr<Sale> sale1 = session.add(new Sale{ 0, 20.0, now, stock1, 2 });
-        Wt::Dbo::ptr<Sale> sale2 = session.add(new Sale{ 0, 15.0, now, stock2, 3 });
+        Wt::Dbo::ptr<Sale> sale1 = session.add(std::make_unique<Sale>(Sale{ 0, 20.0, now, stock1, 2 }));
+        Wt::Dbo::ptr<Sale> sale2 = session.add(std::make_unique<Sale>(Sale{ 0, 15.0, now, stock2, 3 }));
 
         transaction.commit();
 
@@ -135,13 +138,16 @@ int main() {
 
         // Выполнение запроса на выборку магазинов
         Wt::Dbo::Transaction queryTransaction(session);
-        Wt::Dbo::ptr<Publisher> publisher = session.query<Publisher>().where("name = ?").bind(publisherName);
+
+        Wt::Dbo::ptr<Publisher> publisher = session.query<Wt::Dbo::ptr<Publisher>>(
+            "SELECT * FROM publisher WHERE name = ?").bind(publisherName.c_str()).resultValue();
+
         Shops shops = publisher->shops(queryTransaction);
 
         // Вывод результатов
         std::cout << "Магазины, в которых продают книги издателя '" << publisherName << "':" << std::endl;
         for (const auto& shop : shops) {
-            std::cout << "Магазин ID: " << shop.id << ", Название: " << shop.name << std::endl;
+            std::cout << "Магазин ID: " << shop->id << ", Название: " << shop->name << std::endl;
         }
     }
     catch (const std::exception& e) {
