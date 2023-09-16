@@ -5,6 +5,8 @@
 #include <Wt/WDateTime.h>
 #include <Wt/Dbo/Query.h>
 #include <Wt/Dbo/QueryModel.h>
+#include <Wt/WDateTime.h>
+#include <Wt/WString.h>
 
 // Определение классов Publisher, Book, Stock, Sale, Shop
 class Publisher;
@@ -63,7 +65,7 @@ class Sale {
 public:
     int id;
     double price;
-    Wt::WDateTime date_sale;
+    std::string date_sale; // Изменили тип на std::string
     Wt::Dbo::ptr<Stock> stock;
     int count;
 
@@ -95,7 +97,7 @@ Shops Publisher::shops(Wt::Dbo::Transaction& t) const {
     query.join("INNER JOIN book ON stock.id_book = book.id");
     query.join("INNER JOIN publisher ON book.id_publisher = publisher.id");
     query.where("publisher.name = ?").bind(name.c_str());
- 
+
     return query.resultList();
 }
 
@@ -125,7 +127,17 @@ int main() {
         Wt::Dbo::ptr<Stock> stock1 = session.add(std::make_unique<Stock>(Stock{ 0, book1, shop1, 10 }));
         Wt::Dbo::ptr<Stock> stock2 = session.add(std::make_unique<Stock>(Stock{ 0, book2, shop2, 5 }));
 
-        Wt::WDateTime now = Wt::WDateTime::currentDateTime();
+      /*  std::string now = Wt::WDateTime::currentDateTime().toString()*/; // Преобразование в строку
+
+
+        Wt::WDateTime currentDateTime = Wt::WDateTime::currentDateTime();
+        Wt::WString wtString = currentDateTime.toString("yyyy-MM-dd HH:mm:ss");
+        std::string now = wtString.toUTF8();
+
+
+        //Wt::WDateTime currentDateTime = Wt::WDateTime::currentDateTime();
+        //std::string now = currentDateTime.toString("yyyy-MM-dd HH:mm:ss").toUTF8();
+
         Wt::Dbo::ptr<Sale> sale1 = session.add(std::make_unique<Sale>(Sale{ 0, 20.0, now, stock1, 2 }));
         Wt::Dbo::ptr<Sale> sale2 = session.add(std::make_unique<Sale>(Sale{ 0, 15.0, now, stock2, 3 }));
 
