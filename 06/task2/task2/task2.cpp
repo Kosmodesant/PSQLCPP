@@ -5,8 +5,8 @@
 #include <Wt/WDateTime.h>
 #include <Wt/Dbo/Query.h>
 #include <Wt/Dbo/QueryModel.h>
-#include <Wt/WDateTime.h>
-#include <Wt/WString.h>
+//#include <Wt/WDateTime.h>
+//#include <Wt/WString.h>
 
 // Определение классов Publisher, Book, Stock, Sale, Shop
 class Publisher;
