@@ -15,6 +15,7 @@ class Stock;
 class Sale;
 class Shop;
 
+
 typedef Wt::Dbo::collection<Wt::Dbo::ptr<Shop>> Shops;
 
 class Publisher {
@@ -103,11 +104,24 @@ Shops Publisher::shops(Wt::Dbo::Transaction& t) const {
 
 int main() {
     try {
+
+
         // Инициализация Wt::Dbo с использованием PostgreSQL
         std::unique_ptr<Wt::Dbo::backend::Postgres> postgresBackend =
             std::make_unique<Wt::Dbo::backend::Postgres>("user=username password=PASSWORD dbname=dbname");
         Wt::Dbo::Session session;
         session.setConnection(std::move(postgresBackend));
+
+
+
+        // Мапим классы
+        session.mapClass<Publisher>("publisher");
+        session.mapClass<Book>("book");
+        session.mapClass<Stock>("stock");
+        session.mapClass<Sale>("sale");
+        session.mapClass<Shop>("shop");
+
+
 
         // Создание таблиц (если они не существуют)
         session.createTables();
